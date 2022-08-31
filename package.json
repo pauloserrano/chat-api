@@ -5,13 +5,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon main"
+    "start": "nodemon server/app"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
+    "dayjs": "^1.11.5",
     "express": "^4.18.1"
   },
   "devDependencies": {
