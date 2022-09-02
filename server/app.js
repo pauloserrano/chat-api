@@ -22,7 +22,7 @@ client.connect().then(() => {
 
 
 async function isInactive(name){
-    return true
+    return false
 }
 
 async function isUnavailable(name){
@@ -40,7 +40,7 @@ async function isUnavailable(name){
 app.get('/participants', async (req, res) => {
     try{
         const participants = await db.collection('participants').find().toArray()
-        res.send(participants)
+        res.status(200).send(participants)
 
     } catch (err){
         res.sendStatus(500)
@@ -50,24 +50,23 @@ app.get('/participants', async (req, res) => {
 
 app.post('/participants', async (req, res) => {
     const { name } = req.body
-    const nameValidation = participantSchema.validate({ name })
-    
-    if (nameValidation.error){
-        res.sendStatus(422)
-        return
-    }
+    const lastStatus = Date.now()
+    const time = dayjs().format('HH:mm:ss')
 
-    if (await isUnavailable(name)){
+    const nameValidation = participantSchema.validate({ name })
+    if (nameValidation.error){
+        res.status(422).send(nameValidation.error.details)
+        return
+    
+    } if (await isUnavailable(name)){
         res.sendStatus(409)
         return
     }
 
     try {
-        await db.collection('participants').insertOne({
-            name,
-            lastStatus: Date.now()
-        })
-        res.sendStatus(201)
+        const participant = await db.collection('participants').insertOne({ name, lastStatus })
+        await db.collection('messages').insertOne({ from: 'xxx', to: 'Todos', text: 'entra na sala...', type: 'status', time })
+        res.status(201).send(participant)
     
     } catch (err){
         res.status(500).send(err)
@@ -91,47 +90,56 @@ app.delete('/participants/:id', async (req, res) => {
 
 app.get('/messages', async (req, res) => {
     const { limit } = req.query
-    const { User: from } = req.headers
+    const { user } = req.headers
 
-    if (limit){
+    try {
+        let messages = await db.collection('messages').find().toArray()
+        
+        if (limit){
+            messages = messages.slice(0, limit)
+        }
 
+        res.status(200).send(messages.filter(({ to, type }) => (type !== 'private_message' || to === user)))
+
+    } catch (err) {
+        res.status(500).send(err)
     }
-
-    res.send([])
 })
 
 
-app.post('/messages', (req, res) => {
+app.post('/messages', async (req, res) => {
     const { to, text, type } = req.body
-    const { User: from } = req.headers
+    const { user: from } = req.headers
     const time = dayjs().format('HH:mm:ss')
 
-    if (!to || !text) {
-        res.sendStatus(422)
+    const messageValidation = messageSchema.validate({ to, text, type })
+    if (messageValidation.error) {
+        res.status(422).send(messageValidation.error.details)
         return
     
-    } else if (type !== ('message' || 'private_message')){
-        res.sendStatus(422)
-        return
-    
-    } else if (!isActive(from)){
-        res.sendStatus(422)
+    } if (await isInactive(from)){
+        res.status(422).send('User is not active')
         return
     }
+    try {
+        const message = await db.collection('messages').insertOne({ from, to, text, type, time })
+        res.status(201).send(message)
 
-    res.status(201).send({from, to, text, type, time})
+    } catch (err) {
+        res.status(500).send(err)
+    }
 })
 
 
 app.post('/status', (req, res) => {
-    const { User } = req.headers
+    const { user } = req.headers
 
-    if (!isActive(User)){
+    if (isInactive(user)){
         res.sendStatus(404)
         return
     }
 
-    res.status(200).send({name: User, lastStatus: Date.now()})
+    res.status(200).send({ name: User, lastStatus: Date.now() })
 })
 
 
