@@ -1,43 +1,110 @@
 import express from 'express'
 import cors from 'cors'
 import dayjs from 'dayjs'
-import customParseFormat from 'dayjs/plugin/customParseFormat'
+import dotenv from 'dotenv'
+import { MongoClient, ObjectId } from 'mongodb'
+import { participantSchema, messageSchema } from './schemes.js'
 
 
 const PORT = 5000
 const app = express()
 app.use(express.json())
 app.use(cors())
-dayjs.extend(customParseFormat)
+dotenv.config()
 
-app.post('/participants', (req, res) => {
+
+let db
+const client = new MongoClient(process.env.MONGO_URI)
+client.connect().then(() => {
+    db = client.db('chat-api')
+    console.log('Connected successfully to database "chat-api"');
+})
+
+
+async function isInactive(name){
+    return true
+}
+
+async function isUnavailable(name){
+    try{
+        const match = await db.collection('participants').findOne({ name })
+        return match
+
+    } catch (err){
+        console.error(err)
+        return err
+    }
+}
+
+
+app.get('/participants', async (req, res) => {
+    try{
+        const participants = await db.collection('participants').find().toArray()
+        res.send(participants)
+
+    } catch (err){
+        res.sendStatus(500)
+    }
+})
+
+
+app.post('/participants', async (req, res) => {
     const { name } = req.body
-
-    if (!name){
+    const nameValidation = participantSchema.validate({ name })
+    
+    if (nameValidation.error){
         res.sendStatus(422)
         return
     }
 
-    const isAvailable = !true
-    if (!isAvailable){
+    if (await isUnavailable(name)){
         res.sendStatus(409)
         return
     }
 
-    res.status(201).send({name, lastStatus: Date.now()})
+    try {
+        await db.collection('participants').insertOne({
+            name,
+            lastStatus: Date.now()
+        })
+        res.sendStatus(201)
+    
+    } catch (err){
+        res.status(500).send(err)
+    }
+
 })
 
 
-app.get('/participants', (req, res) => {
-    const participants = []
-    res.send(participants)
+app.delete('/participants/:id', async (req, res) => {
+    const { id } = req.params
+
+    try {
+        await db.collection('participants').deleteOne({_id: new ObjectId(id)})
+        res.sendStatus(200)
+
+    } catch (err){
+        res.status(500).send(err)
+    }
+})
+
+
+app.get('/messages', async (req, res) => {
+    const { limit } = req.query
+    const { User: from } = req.headers
+
+    if (limit){
+
+    }
+
+    res.send([])
 })
 
 
 app.post('/messages', (req, res) => {
     const { to, text, type } = req.body
     const { User: from } = req.headers
-    // const time = dayjs('HH:MM:SS')
+    const time = dayjs().format('HH:mm:ss')
 
     if (!to || !text) {
         res.sendStatus(422)
@@ -56,18 +123,6 @@ app.post('/messages', (req, res) => {
 })
 
 
-app.get('/messages', (req, res) => {
-    const { limit } = req.query
-    const { User: from } = req.headers
-
-    if (limit){
-
-    }
-
-    res.send([])
-})
-
-
 app.post('/status', (req, res) => {
     const { User } = req.headers
 
@@ -79,9 +134,5 @@ app.post('/status', (req, res) => {
     res.status(200).send({name: User, lastStatus: Date.now()})
 })
 
-
-function isActive(user){
-    return true
-}
 
 app.listen(PORT, () => console.log(`Running on port ${PORT}`))
