@@ -64,9 +64,10 @@ app.post('/participants', async (req, res) => {
     }
 
     try {
-        const participant = await db.collection('participants').insertOne({ name, lastStatus })
+        await db.collection('participants').insertOne({ name, lastStatus })
         await db.collection('messages').insertOne({ from: 'xxx', to: 'Todos', text: 'entra na sala...', type: 'status', time })
-        res.status(201).send(participant)
+        
+        res.sendStatus(201)
     
     } catch (err){
         res.status(500).send(err)
@@ -131,15 +132,22 @@ app.post('/messages', async (req, res) => {
 })
 
 
-app.post('/status', (req, res) => {
+app.post('/status', async (req, res) => {
     const { user } = req.headers
 
-    if (isInactive(user)){
+    if (!await isUnavailable(user)){
         res.sendStatus(404)
         return
     }
 
-    res.status(200).send({ name: User, lastStatus: Date.now() })
+    try {
+        await db.collection('participants').updateOne({ name: user }, { $set: { lastStatus: Date.now() }})
+        res.sendStatus(200)
+        
+    } catch (err) {
+        res.sendStatus(500)
+    }
+
 })
 
 
