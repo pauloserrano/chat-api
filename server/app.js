@@ -16,19 +16,44 @@ dotenv.config()
 let db
 const client = new MongoClient(process.env.MONGO_URI)
 client.connect().then(() => {
-    db = client.db('chat-api')
-    console.log('Connected successfully to database "chat-api"');
+    db = client.db('chat_api')
+    
+    setInterval(async () => {
+        const collection = db.collection('participants')
+        const participants = await collection.find().toArray()
+
+        participants.forEach(({ _id, name, lastStatus }) => {
+            if((Date.now() - lastStatus) > 10000){
+                // Mensagem de saiu da sala
+                db.collection('messages').insertOne({ from: name, to: 'Todos', text: 'entra na sala...', type: 'status', time: dayjs().format('HH:mm:ss') })
+
+                // Remove do banco
+                collection.deleteOne({_id: ObjectId(_id)})
+            }
+        })
+    }, 15000)
 })
 
 
 async function isInactive(name){
+    const timestamp = Date.now()
+
+    try {
+        const user = await db.collection('participants').findOne({ name })
+
+        //if (user.lastStatus)
+
+    } catch (err) {
+        console.error(err)
+        return err
+    }
     return false
 }
 
 async function isUnavailable(name){
     try{
         const match = await db.collection('participants').findOne({ name })
-        return match
+        return !!match
 
     } catch (err){
         console.error(err)
@@ -53,7 +78,7 @@ app.post('/participants', async (req, res) => {
     const lastStatus = Date.now()
     const time = dayjs().format('HH:mm:ss')
 
-    const nameValidation = participantSchema.validate({ name })
+    const nameValidation = participantSchema.validate({ name }, { abortEarly: false })
     if (nameValidation.error){
         res.status(422).send(nameValidation.error.details)
         return
@@ -65,7 +90,7 @@ app.post('/participants', async (req, res) => {
 
     try {
         await db.collection('participants').insertOne({ name, lastStatus })
-        await db.collection('messages').insertOne({ from: 'xxx', to: 'Todos', text: 'entra na sala...', type: 'status', time })
+        await db.collection('messages').insertOne({ from: name, to: 'Todos', text: 'entra na sala...', type: 'status', time })
         
         res.sendStatus(201)
     
@@ -100,7 +125,7 @@ app.get('/messages', async (req, res) => {
             messages = messages.slice(0, limit)
         }
 
-        res.status(200).send(messages.filter(({ to, type }) => (type !== 'private_message' || to === user)))
+        res.status(200).send(messages.filter(({ to, from, type }) => (type !== 'private_message' || (to || from) === user)))
 
     } catch (err) {
         res.status(500).send(err)
@@ -112,19 +137,20 @@ app.post('/messages', async (req, res) => {
     const { to, text, type } = req.body
     const { user: from } = req.headers
     const time = dayjs().format('HH:mm:ss')
-
     const messageValidation = messageSchema.validate({ to, text, type })
-    if (messageValidation.error) {
-        res.status(422).send(messageValidation.error.details)
+
+    if (!await isUnavailable(from)){
+        res.sendStatus(422)
         return
     
-    } if (await isInactive(from)){
-        res.status(422).send('User is not active')
+    } if (messageValidation.error) {
+        res.status(422).send(messageValidation.error.details)
         return
     }
+
     try {
-        const message = await db.collection('messages').insertOne({ from, to, text, type, time })
-        res.status(201).send(message)
+        await db.collection('messages').insertOne({ from, to, text, type, time })
+        res.sendStatus(201)
 
     } catch (err) {
         res.status(500).send(err)
