@@ -100,8 +100,8 @@ app.delete('/participants/:id', async (req, res) => {
 
 
 app.get('/messages', async (req, res) => {
-    const { limit } = req.query
     const { user } = req.headers
+    let { limit } = req.query
 
     if (!limit) limit = Number.POSITIVE_INFINITY
 
@@ -134,6 +134,31 @@ app.post('/messages', async (req, res) => {
     try {
         await db.collection('messages').insertOne({ from, to, text, type, time })
         res.sendStatus(201)
+
+    } catch (err) {
+        res.status(500).send(err)
+    }
+})
+
+app.delete('/messages/:id', async (req, res) => {
+    const { user } = req.headers
+    const { id } = req.params
+
+    try {
+        const collection = await db.collection('messages')
+        const message = await collection.findOne({_id: ObjectId(id)})
+
+        if (!message){
+            res.sendStatus(404)
+            return
+        
+        } else if (message.from !== user){
+            res.sendStatus(401)
+            return
+        }
+
+        await collection.deleteOne({_id: ObjectId(id)})
+        res.sendStatus(200)
 
     } catch (err) {
         res.status(500).send(err)

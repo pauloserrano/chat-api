@@ -1,3 +1,4 @@
+# Requisitos
 ## Geral
 - [x]  A porta utilizada pelo seu servidor deve ser a 5000 (isso facilita nossa avaliação 🙂)
 
@@ -113,3 +114,43 @@ http://localhost:4000/messages?limit=100
 ```jsx
 {from: 'xxx', to: 'Todos', text: 'sai da sala...', type: 'status', time: 'HH:MM:SS'}
 ```
+#
+
+# Bônus
+## Sanitização de dados
+- [ ]  Ao salvar um participante, sanitizar o parâmetro **name** (remover possíveis tags HTML por segurança)
+        
+> **Dica**: pesquise por uma lib chamada **string-strip-html**
+        
+- [ ]  Ao salvar uma mensagem, sanitizar todos os parâmetros (remover possíveis tags HTML por segurança)
+- [ ]  Além disso, remova possíveis espaços em branco no início e fim das strings (pesquise por **trim**)
+#
+## DELETE `/messages/ID_DA_MENSAGEM`
+- [x]  Deve receber por um **header** na requisição, chamado `User`, contendo o nome do participante que deseja deletar a mensagem
+- [x]  Deve receber por **path params** o ID da mensagem a ser deletada
+- [x]  Deve buscar na coleção `messages` se alguma mensagem existe com o id recebido, e, caso não exista, retornar **status 404**
+- [x]  Caso o usuário do header não seja o dono da mensagem, retornar **status 401**
+- [x]  Remover a mensagem da coleção `messages`
+#
+## PUT `/messages/ID_DA_MENSAGEM`
+- [ ]  Deve receber (pelo body da request), os parâmetros `to`, `text` e `type`:
+        
+```jsx
+{
+    to: "Maria",
+    text: "oi sumida rs",
+    type: "private_message"
+}
+```
+        
+- [ ]  Já o `from` da mensagem, ou seja, o remetente, **não será enviado pelo body**. Será enviado pelo front através de um **header** na requisição, chamado `User`
+- [ ]  Deve receber por um **header** na requisição, chamado `User`, contendo o nome do participante que deseja atualizar a mensagem
+- [ ]  Validar: (caso algum erro seja encontrado, retornar **status 422**)
+    - [ ]  **to** e **text** devem ser strings não vazias
+    - [ ]  **type** só pode ser 'message' ou 'private_message'
+    - [ ]  **from** deve ser um participante existente na lista de participantes
+- [ ]  As validações deverão ser feitas com a biblioteca `joi`, com exceção da validação de um participante existente na lista de participantes (use as funções do MongoDB para isso)
+- [ ]  Deve receber por **path params** o ID da mensagem a ser atualizada
+- [ ]  Deve buscar na coleção `messages` se alguma mensagem existe com o id recebido, e, caso não exista, retornar **status 404**
+- [ ]  Caso o usuário do header não seja o dono da mensagem, retornar **status 401**
+- [ ]  Atualizar a mensagem da coleção `messages` com os dados do body
