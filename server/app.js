@@ -35,21 +35,6 @@ client.connect().then(() => {
 })
 
 
-async function isInactive(name){
-    const timestamp = Date.now()
-
-    try {
-        const user = await db.collection('participants').findOne({ name })
-
-        //if (user.lastStatus)
-
-    } catch (err) {
-        console.error(err)
-        return err
-    }
-    return false
-}
-
 async function isUnavailable(name){
     try{
         const match = await db.collection('participants').findOne({ name })
@@ -118,14 +103,12 @@ app.get('/messages', async (req, res) => {
     const { limit } = req.query
     const { user } = req.headers
 
+    if (!limit) limit = Number.POSITIVE_INFINITY
+
     try {
         let messages = await db.collection('messages').find().toArray()
-        
-        if (limit){
-            messages = messages.slice(0, limit)
-        }
 
-        res.status(200).send(messages.filter(({ to, from, type }) => (type !== 'private_message' || (to || from) === user)))
+        res.status(200).send(messages.slice(-limit).filter(({ to, from, type }) => (type !== 'private_message' || (to || from) === user)))
 
     } catch (err) {
         res.status(500).send(err)
