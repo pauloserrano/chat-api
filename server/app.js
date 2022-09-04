@@ -108,7 +108,7 @@ app.get('/messages', async (req, res) => {
     try {
         let messages = await db.collection('messages').find().toArray()
 
-        res.status(200).send(messages.slice(-limit).filter(({ to, from, type }) => (type !== 'private_message' || (to || from) === user)))
+        res.status(200).send(messages.slice(-limit).filter(({ to, from, type }) => (type !== 'private_message' || to === user || from === user)))
 
     } catch (err) {
         res.status(500).send(err)
@@ -158,6 +158,39 @@ app.delete('/messages/:id', async (req, res) => {
         }
 
         await collection.deleteOne({_id: ObjectId(id)})
+        res.sendStatus(200)
+
+    } catch (err) {
+        res.status(500).send(err)
+    }
+})
+
+app.put('/messages/:id', async (req, res) => {
+    const { to, text, type } = req.body 
+    const { user } = req.headers
+    const { id } = req.params
+
+    const validMessage = messageSchema.validate({ to, text, type }, { abortEarly: false })
+
+    if (validMessage.error){
+        res.status(422).send(validMessage.error.details)
+        return
+    }
+
+    try {
+        const collection = await db.collection('messages')
+        const message = await collection.findOne({_id: ObjectId(id)})
+
+        if (!message){
+            res.sendStatus(404)
+            return
+        
+        } else if (message.from !== user){
+            res.sendStatus(401)
+            return
+        }
+
+        collection.updateOne({_id: ObjectId(id)}, {$set: {to, text, type}})
         res.sendStatus(200)
 
     } catch (err) {
